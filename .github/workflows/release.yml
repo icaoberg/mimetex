@@ -1,0 +1,41 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build mimetex.cgi
+        run: make
+
+      - name: Set release tag
+        id: tag
+        run: echo "tag=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+
+      - name: Delete existing release and tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+
+          # Delete all existing releases
+          gh release list --json tagName --jq '.[].tagName' | while read -r t; do
+            gh release delete "$t" --yes --cleanup-tag || true
+          done
+
+      - name: Create release with artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          gh release create "$TAG" cgi-bin/mimetex.cgi \
+            --title "$TAG" \
+            --notes "Automated release for $TAG"
